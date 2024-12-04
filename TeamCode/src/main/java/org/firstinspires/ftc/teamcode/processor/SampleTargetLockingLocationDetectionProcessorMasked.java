@@ -32,8 +32,9 @@ public class SampleTargetLockingLocationDetectionProcessorMasked implements Visi
     Scalar yellowOutlineLow = new Scalar(210, 0, 0);
     Scalar yellowOutlineHigh = new Scalar(255, 255, 255);
 
-    Mat erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(3, 3));
-    Mat dilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(6, 6));
+    Mat erodeElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(5, 5));
+    Mat dilateElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(2, 2));
+    Mat closeElement = Imgproc.getStructuringElement(Imgproc.MORPH_RECT, new Size(10, 10));
 
     static Scalar green = new Scalar(0, 255, 0);
 
@@ -58,11 +59,15 @@ public class SampleTargetLockingLocationDetectionProcessorMasked implements Visi
 
     private void analyzeContour(MatOfPoint contour, Mat input) {
         ArrayList<Point> contourArray = new ArrayList<Point>(contour.toList());
+        MatOfPoint2f contour2f = new MatOfPoint2f(contour.toArray());
 
-
+        RotatedRect rotatedRectFitToContour = Imgproc.minAreaRect(contour2f);
         for (Point point : contourArray) {
+
             Imgproc.circle(input, point, 1, green, 2);
+
         }
+//        drawRotatedRect(rotatedRectFitToContour, input);
     }
     private void analyzeRightAng(MatOfPoint contour, Mat input) {
         Point[] contourArray = contour.toArray();
@@ -85,6 +90,7 @@ public class SampleTargetLockingLocationDetectionProcessorMasked implements Visi
         }
         for (Point point : corners) {
             Imgproc.circle(input, point, 1, green, 2);
+
         }
     }
     private void SeparateContours(MatOfPoint contour, Mat input) {
@@ -95,21 +101,66 @@ public class SampleTargetLockingLocationDetectionProcessorMasked implements Visi
         double angle;
         double angle2;
         int corner = 0;
-        for (int i = 2; i < OriginalContourArray.size(); i+=10) {
-            angle = Math.atan(Math.abs(OriginalContourArray.get(i).y - OriginalContourArray.get(corner).y)/Math.abs(OriginalContourArray.get(i).x - OriginalContourArray.get(corner).x));
-            for (int j = corner + 1; j < i; j+=10) {
-                angle2 = Math.atan(Math.abs(OriginalContourArray.get(j).y - OriginalContourArray.get(corner).y)/Math.abs(OriginalContourArray.get(j).x - OriginalContourArray.get(corner).x));
-                if (angle2 > angle) {
-                    SeparatedContourArray.add(OriginalContourArray.get(j));
-                }
+        int offset = 0;
+        for (int i = offset; i < OriginalContourArray.size(); i += 10) {
+            angle = Math.atan(Math.abs(OriginalContourArray.get(i).y - OriginalContourArray.get(corner).y) / Math.abs(OriginalContourArray.get(i).x - OriginalContourArray.get(corner).x));
+            for (int j = corner; j < i; j++) {
+                angle2 = Math.atan(Math.abs(OriginalContourArray.get(j).y - OriginalContourArray.get(corner).y) / Math.abs(OriginalContourArray.get(j).x - OriginalContourArray.get(corner).x));
             }
         }
-
         OriginalContour.fromList(OriginalContourArray);
         SeparatedContour.fromList(SeparatedContourArray);
 //        analyzeContour(OriginalContour, input);
         analyzeContour(SeparatedContour, input);
+    }
 
+    private void SeparateContoursAdv(MatOfPoint contour, Mat input) {
+        MatOfPoint OriginalContour = new MatOfPoint();
+        MatOfPoint SeparatedContour = new MatOfPoint();
+        ArrayList<Point> OriginalContourArray = new ArrayList<Point>(contour.toList());
+        ArrayList<Point> SeparatedContourArray = new ArrayList<Point>();
+        double angle;
+        double angle2;
+        int corner = 0;
+        int offset = 0;
+        for (int i = offset; i < OriginalContourArray.size(); i += 10) {
+            angle = Math.atan(Math.abs(OriginalContourArray.get(i).y - OriginalContourArray.get(corner).y) / Math.abs(OriginalContourArray.get(i).x - OriginalContourArray.get(corner).x));
+            for (int j = corner; j < i; j++) {
+                angle2 = Math.atan(Math.abs(OriginalContourArray.get(j).y - OriginalContourArray.get(corner).y) / Math.abs(OriginalContourArray.get(j).x - OriginalContourArray.get(corner).x));
+                if (angle2 > angle) {
+                    SeparatedContourArray.add(OriginalContourArray.get(j));
+                    OriginalContourArray.remove(j);
+                    corner = j;
+                    offset = corner;
+                    break;
+                }
+            }
+        }
+        OriginalContour.fromList(OriginalContourArray);
+        SeparatedContour.fromList(SeparatedContourArray);
+//        analyzeContour(OriginalContour, input);
+        analyzeContour(SeparatedContour, input);
+    }
+
+    private void analyzeContourWithDeriv(MatOfPoint contour, Mat input) {
+        MatOfPoint OriginalContour = new MatOfPoint();
+        ArrayList<Point> OriginalContourArray = new ArrayList<Point>();
+        MatOfPoint D1 = TakeDerivOfContour(OriginalContour);
+        MatOfPoint D2 = TakeDerivOfContour(D1);
+
+
+    }
+    private MatOfPoint TakeDerivOfContour(MatOfPoint OriginalContour) {
+        MatOfPoint contour = new MatOfPoint();
+        MatOfPoint DofContour = new MatOfPoint();
+        ArrayList<Point> ContourArray = new ArrayList<Point>(OriginalContour.toList());
+        ArrayList<Point> DofContourArray = new ArrayList<Point>();
+        for (int i = 1; i < ContourArray.size()-1; i++){
+            DofContourArray.add(new Point(i, CalcSlope(ContourArray.get(i-1), ContourArray.get(i+1))));
+        }
+        DofContour.fromList(DofContourArray);
+
+        return DofContour;
     }
     private double CalcSlope (Point Point1, Point Point2) {
         return (Point2.y - Point1.y) / (Point2.x - Point1.x);
@@ -170,6 +221,11 @@ public class SampleTargetLockingLocationDetectionProcessorMasked implements Visi
 
         Imgproc.dilate(output, output, dilateElement);
         Imgproc.dilate(output, output, dilateElement);
+
+        Imgproc.morphologyEx(input, output, Imgproc.MORPH_CLOSE, closeElement);
+        Imgproc.morphologyEx(output, output, Imgproc.MORPH_CLOSE, closeElement);
+
+
     }
 
 
